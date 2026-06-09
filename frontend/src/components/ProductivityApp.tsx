@@ -10,6 +10,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatAutomation, Message, Proposal } from '../hooks/useChatAutomation';
+import './ProductivityApp.css'
 
 export function ProductivityApp() {
   const {
