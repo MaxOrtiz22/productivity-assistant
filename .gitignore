@@ -1,0 +1,9 @@
+# Mantener las API Keys en local de forma segura
+.env
+backend/.env
+frontend/.env.local
+
+# Carpetas ocultas del sistema y de Python
+__pycache__/
+*.pyc
+.vscode/
