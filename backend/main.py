@@ -147,9 +147,9 @@ def call_gemini_for_proposal(
     
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="API key no configurada")
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY key no configurada")
     
-    client = genai.Client()
+    client = genai.Client(api_key=api_key)
     
     # Formatear historial de mensajes para Claude
     formatted_history = "\n".join([
@@ -198,6 +198,9 @@ IMPORTANT:
                 response_schema = ProposedChanges
             ),
         )
+
+        result = ProposedChanges.model_validate_json(response.text)
+        return result
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error procesando la propuesta con Gemini: {str(e)}")
@@ -287,7 +290,7 @@ async def chat(request: ChatRequest):
         },
         "conflicts": proposal.conflicts,
         "explanation": proposal.explanation,
-        "proposed_changes": proposal.dict()  # Todo el objeto para debugging
+        "proposed_changes": proposal.model_dump()  # Todo el objeto para debugging
     }
 
 @app.post("/api/confirm-changes")
