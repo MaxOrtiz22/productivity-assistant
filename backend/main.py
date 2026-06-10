@@ -6,13 +6,13 @@ Chat-driven automation: usuario escribe → IA propone → usuario confirma → 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os
+import os, uuid, json
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-import uuid
+from pathlib import Path
 
 load_dotenv()
 
@@ -95,7 +95,20 @@ class AdjustProposalRequest(BaseModel):
 # En fase 2 cambiaremos a persistencia real
 # ============================================================================
 
-conversations_store: Dict[str, ConversationState] = {}
+STORAGE_FILE = Path("./conversations.json")
+
+def _load_store() -> dict:
+    if STORAGE_FILE.exist():
+        try:
+            return json.loads(STORAGE_FILE.read_text())
+        except:
+            return {}
+    return {}
+
+def _save_store(store: dict):
+    STORAGE_FILE.write_text(json.dumps(store, default=str, indent=2))
+
+conversations_store: Dict[str, Any] = _load_store()
 
 def generate_conversation_id() -> str:
     """Genera un ID único para la conversación"""
@@ -125,12 +138,25 @@ def load_conversation(conversation_id: Optional[str]) -> ConversationState:
         conversations_store[conv_id] = conv
         return conv
     
-    return conversations_store[conversation_id]
+    raw = conversations_store[conversation_id]
+    
+    if isinstance(raw, dict):
+        conv = ConversationState(**raw)
+        return conv
+    return raw
 
 def save_conversation(conversation: ConversationState):
     """Guarda una conversación"""
     conversation.last_updated = datetime.now().isoformat()
     conversations_store[conversation.id] = conversation
+
+    serialized = {}
+    for k, v in conversations_store.items():
+        if isinstance(v, ConversationState):
+            serialized[k] = json.loads(v.model_dump_json())
+        else:
+            serialized[k] = v
+    _save_store(serialized)
 
 # ============================================================================
 # LÓGICA PRINCIPAL: ANÁLISIS CON CLAUDE
@@ -297,7 +323,6 @@ async def chat(request: ChatRequest):
 async def confirm_changes(request: ConfirmChangesRequest):
     """
     Endpoint para confirmar y aplicar los cambios propuestos.
-    
     Flujo:
     1. Cargar conversación
     2. Aplicar cambios a app_state
@@ -447,7 +472,7 @@ async def adjust_proposal(request: AdjustProposalRequest):
         },
         "conflicts": new_proposal.conflicts,
         "explanation": new_proposal.explanation,
-        "proposed_changes": new_proposal.dict()
+        "proposed_changes": new_proposal.model_dump()
     }
 
 @app.get("/api/conversation/{conversation_id}")

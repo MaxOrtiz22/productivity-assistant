@@ -7,3 +7,11 @@ frontend/.env.local
 __pycache__/
 *.pyc
 .vscode/
+
+# Dependencias
+node_modules/
+/node_modules
+
+conversations.json
+.env
+backend/.env

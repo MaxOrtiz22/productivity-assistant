@@ -1,0 +1,13 @@
+{
+  "name": "productivity-assistant",
+  "scripts": {
+    "install:backend": "cd backend && pip install -r requirements.txt",
+    "install:frontend": "cd frontend && npm install",
+    "backend": "cd backend && uvicorn main:app --reload --port 8000",
+    "frontend": "cd frontend && npm start",
+    "dev": "concurrently -n backend,frontend -c cyan,magenta \"npm run backend\" \"npm run frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
