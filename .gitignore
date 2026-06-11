@@ -15,3 +15,6 @@ node_modules/
 conversations.json
 .env
 backend/.env
+
+.venv/
+dist/
