@@ -98,7 +98,7 @@ class AdjustProposalRequest(BaseModel):
 STORAGE_FILE = Path("./conversations.json")
 
 def _load_store() -> dict:
-    if STORAGE_FILE.exist():
+    if STORAGE_FILE.exists():
         try:
             return json.loads(STORAGE_FILE.read_text())
         except:
