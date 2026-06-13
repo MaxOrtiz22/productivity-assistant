@@ -5,7 +5,7 @@ Chat-driven automation: usuario escribe → IA propone → usuario confirma → 
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import os, uuid, json
 from dotenv import load_dotenv
 from google import genai
@@ -13,6 +13,12 @@ from google.genai import types
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from pathlib import Path
+from calendar_models import (
+    Event, SubTask, TimeSlot, CalendarEntry, CalendarState,
+    AIProposal, EventType, TaskStatus, Tag
+)
+from ai_proposal_handler import generate_calendar_proposal
+from datetime import date, time as datetime_time
 
 load_dotenv()
 
@@ -72,6 +78,8 @@ class ConversationState(BaseModel):
     id: str
     messages: List[Message]
     proposed_changes: Optional[ProposedChanges] = None
+    calendar_state: CalendarState = Field(default_factory=CalendarState)
+    pending_calendar_proposal: Optional[AIProposal] = None
     app_state: Dict[str, Any]  # Tasks, calendar, notes actuales
     created_at: str
     last_updated: str
@@ -80,6 +88,10 @@ class ChatRequest(BaseModel):
     """Request del cliente para enviar un mensaje"""
     message: str
     conversation_id: Optional[str] = None
+    create_calendar_event: Optional[bool] = False
+    event_name: Optional[str] = None
+    event_deadline: Optional[str] = None  # "2026-06-28"
+    total_duration_minutes: Optional[int] = None  # 300 (5 horas)
 
 class ConfirmChangesRequest(BaseModel):
     """Request para confirmar cambios"""
@@ -127,6 +139,8 @@ def load_conversation(conversation_id: Optional[str]) -> ConversationState:
             id=conv_id,
             messages=[],
             proposed_changes=None,
+            calendar_state = CalendarState(),
+            pending_calendar_proposal = None,
             app_state={
                 "tasks": [],
                 "calendar": [],
@@ -141,6 +155,11 @@ def load_conversation(conversation_id: Optional[str]) -> ConversationState:
     raw = conversations_store[conversation_id]
     
     if isinstance(raw, dict):
+        if "calendar_state" not in raw:
+            raw["calendar_state"] = CalendarState().model_dump()
+        if "pendin_calendar_proposal" not in raw:
+            raw["pending_calendar_proposal"] = None
+
         conv = ConversationState(**raw)
         return conv
     return raw
@@ -157,6 +176,33 @@ def save_conversation(conversation: ConversationState):
         else:
             serialized[k] = v
     _save_store(serialized)
+
+def _extract_event_from_request(request: ChatRequest) -> Optional[Event]:
+    """
+    Helper: extrae datos de Event del ChatRequest.
+    Retorna un Event si los datos son válidos, None si no.
+    """
+    
+    if not request.create_calendar_event:
+        return None
+    
+    if not request.event_name or not request.event_deadline:
+        return None
+    
+    try:
+        deadline = date.fromisoformat(request.event_deadline)
+        
+        event = Event(
+            name=request.event_name,
+            deadline_date=deadline,
+            event_type=EventType.EXAM,  # Default
+            priority=4,  # Default
+        )
+        
+        return event
+    except Exception as e:
+        print(f"Error extrayendo Event: {e}")
+        return None
 
 # ============================================================================
 # LÓGICA PRINCIPAL: ANÁLISIS CON CLAUDE
@@ -277,6 +323,56 @@ async def chat(request: ChatRequest):
         timestamp=datetime.now().isoformat()
     )
     conversation.messages.append(user_message)
+
+    if request.create_calendar_event:
+        event = _extract_event_from_request(request)
+        
+        if event and request.total_duration_minutes:
+            try:
+                # Generar propuesta jerárquica
+                proposal = generate_calendar_proposal(
+                    user_input=request.message,
+                    event=event,
+                    total_duration_minutes=request.total_duration_minutes,
+                    calendar_state=conversation.calendar_state
+                )
+                
+                # Guardar propuesta pendiente
+                conversation.pending_calendar_proposal = proposal
+                
+                # Agregar respuesta de IA
+                ai_message = Message(
+                    role="assistant",
+                    content=proposal.reasoning,
+                    timestamp=datetime.now().isoformat()
+                )
+                conversation.messages.append(ai_message)
+                
+                # Guardar conversación
+                save_conversation(conversation)
+                
+                # Devolver propuesta al frontend
+                return {
+                    "success": True,
+                    "conversation_id": conversation.id,
+                    "type": "calendar_proposal",
+                    "event": event.model_dump(),
+                    "subtasks_preview": [
+                        {
+                            "name": st.name,
+                            "date": st.assigned_date.isoformat(),
+                            "duration_minutes": st.duration_minutes
+                        }
+                        for st in proposal.proposed_subtasks
+                    ],
+                    "reasoning": proposal.reasoning,
+                    "full_proposal": proposal.model_dump()
+                }
+            
+            except Exception as e:
+                print(f"Error generando propuesta: {e}")
+                # Fall back a procesamiento normal
+                pass
     
     # Llamar a Claude para generar propuesta
     try:
@@ -474,6 +570,63 @@ async def adjust_proposal(request: AdjustProposalRequest):
         "explanation": new_proposal.explanation,
         "proposed_changes": new_proposal.model_dump()
     }
+
+@app.post("/api/confirm-calendar-proposal")
+async def confirm_calendar_proposal(conversation_id: str):
+    """
+    Usuario acepta la propuesta de Event + SubTasks + TimeSlots.
+    Persiste los cambios en calendar_state.
+    """
+    
+    conversation = load_conversation(conversation_id)
+    
+    if not conversation.pending_calendar_proposal:
+        raise HTTPException(
+            status_code=400,
+            detail="No hay propuesta de calendario pendiente"
+        )
+    
+    proposal = conversation.pending_calendar_proposal
+    
+    try:
+        # Crear CalendarEntry
+        entry = CalendarEntry(
+            event=proposal.event,
+            subtasks=proposal.proposed_subtasks,
+            timeslots=proposal.proposed_timeslots
+        )
+        
+        # Agregar al calendar_state
+        conversation.calendar_state.entries.append(entry)
+        
+        # Limpiar propuesta
+        conversation.pending_calendar_proposal = None
+        
+        # Guardar
+        save_conversation(conversation)
+        
+        # Respuesta
+        return {
+            "success": True,
+            "message": f"Event '{proposal.event.name}' añadido al calendario",
+            "calendar_summary": {
+                "total_events": len(conversation.calendar_state.entries),
+                "total_subtasks": sum(
+                    len(entry.subtasks) 
+                    for entry in conversation.calendar_state.entries
+                ),
+                "total_timeslots": sum(
+                    len(entry.timeslots) 
+                    for entry in conversation.calendar_state.entries
+                )
+            }
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error confirmando propuesta: {str(e)}"
+        )
 
 @app.get("/api/conversation/{conversation_id}")
 async def get_conversation(conversation_id: str):
