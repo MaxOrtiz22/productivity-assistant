@@ -370,9 +370,12 @@ async def chat(request: ChatRequest):
                 }
             
             except Exception as e:
-                print(f"Error generando propuesta: {e}")
-                # Fall back a procesamiento normal
-                pass
+                print(f"Error generando propuesta de calendario: {e}")
+                return {
+                    "success": False,
+                    "error": f"Error generando propuesta de calendario: {str(e)}",
+                    "conversation_id": conversation.id
+                }
     
     # Llamar a Claude para generar propuesta
     try:
