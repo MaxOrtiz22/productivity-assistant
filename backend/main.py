@@ -654,6 +654,41 @@ async def get_conversation(conversation_id: str):
         "last_updated": conversation.last_updated
     }
 
+@app.get("/api/calendar/{conversation_id}")
+async def get_calendar_events(conversation_id: str):
+    """
+    Obtener eventos del calendario en formato plano para el frontend.
+    Convierte CalendarState jerárquico → lista simple de eventos
+    """
+    conversation = load_conversation(conversation_id)
+    
+    # Convertir TimeSlots a eventos simples
+    events = []
+    
+    for entry in conversation.calendar_state.entries:
+        for ts in entry.timeslots:
+            event = {
+                "id": ts.id,
+                "date": ts.date.isoformat(),
+                "time": ts.start_time.strftime("%H:%M"),
+                "title": entry.event.name,  # Usar nombre del Event padre
+                "hours": (ts.end_time.hour * 60 + ts.end_time.minute - 
+                         ts.start_time.hour * 60 - ts.start_time.minute) / 60,
+                "task_id": entry.event.id,
+                "created_at": ts.created_at.isoformat()
+            }
+            events.append(event)
+    
+    # Ordenar por fecha y hora
+    events.sort(key=lambda e: (e["date"], e["time"]))
+    
+    return {
+        "success": True,
+        "conversation_id": conversation_id,
+        "events": events,
+        "total": len(events)
+    }
+
 # ============================================================================
 # EJECUCIÓN
 # ============================================================================
