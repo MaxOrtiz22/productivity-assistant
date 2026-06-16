@@ -76,6 +76,7 @@ export function useChatAutomation() {
       setConversationId(savedConvId);
       // Opcionalmente: cargar el historial de mensajes desde el backend
       loadConversationHistory(savedConvId);
+      loadCalendarEvents(savedConvId);
     }
   }, []);
   
@@ -140,6 +141,65 @@ export function useChatAutomation() {
     }
   }
   
+// ========================================================================
+// FUNCIONES DE CARGA (primero)
+// ========================================================================
+
+/**
+ * Carga eventos del calendario desde el backend
+ */
+const loadCalendarEvents = useCallback(
+  async (convId: string) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/calendar/${convId}`);
+      if (response.ok) {
+        const data = await response.json();
+        
+        const updatedState = {
+          ...appState,
+          calendar: data.events
+        };
+        setAppState(updatedState);
+        saveToLocalStorage(updatedState);
+      }
+    } catch (err) {
+      console.error('Error cargando eventos del calendario:', err);
+    }
+  },
+  [appState, BACKEND_URL]
+);
+
+/**
+ * Carga el historial de una conversación (opcional, para debugging)
+ */
+const loadConversationHistory = useCallback(
+  async (convId: string) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/conversation/${convId}`);
+      if (response.ok) {
+        const data = await response.json();
+        const msgs: Message[] = data.messages.map((msg: any) => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp
+        }));
+        setMessages(msgs);
+        saveMessagesToLocalStorage(msgs);
+        
+        if (data.has_proposed_changes) {
+          const drafted = localStorage.getItem('draftProposal');
+          if (drafted) {
+            setProposal(JSON.parse(drafted));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error cargando historial:', err);
+    }
+  },
+  [BACKEND_URL]
+);
+
   // ========================================================================
   // FUNCIONES DEL CHAT
   // ========================================================================
@@ -264,6 +324,8 @@ export function useChatAutomation() {
         // 3. Limpiar propuesta temporal
         setProposal(null);
         saveDraftProposal(null);
+
+        loadCalendarEvents(conversationId);
         
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
@@ -273,7 +335,7 @@ export function useChatAutomation() {
         setProposalLoading(false);
       }
     },
-    [conversationId, proposal, BACKEND_URL]
+    [conversationId, proposal, BACKEND_URL, loadCalendarEvents]
   );
   
   /**
@@ -355,38 +417,6 @@ export function useChatAutomation() {
       }
     },
     [conversationId, messages, BACKEND_URL]
-  );
-  
-  /**
-   * Carga el historial de una conversación (opcional, para debugging)
-   */
-  const loadConversationHistory = useCallback(
-    async (convId: string) => {
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/conversation/${convId}`);
-        if (response.ok) {
-          const data = await response.json();
-          const msgs: Message[] = data.messages.map((msg: any) => ({
-            role: msg.role,
-            content: msg.content,
-            timestamp: msg.timestamp
-          }));
-          setMessages(msgs);
-          saveMessagesToLocalStorage(msgs);
-          
-          // Si hay propuesta, cargarla también
-          if (data.has_proposed_changes) {
-            const drafted = localStorage.getItem('draftProposal');
-            if (drafted) {
-              setProposal(JSON.parse(drafted));
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error cargando historial:', err);
-      }
-    },
-    [BACKEND_URL]
   );
   
   // ========================================================================
