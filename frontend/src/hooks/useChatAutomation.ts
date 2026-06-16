@@ -73,6 +73,7 @@ export function useChatAutomation() {
   useEffect(() => {
     const savedConvId = localStorage.getItem('activeConversationId');
     if (savedConvId) {
+      console.log('Cargando conversación:', savedConvId);
       setConversationId(savedConvId);
       // Opcionalmente: cargar el historial de mensajes desde el backend
       loadConversationHistory(savedConvId);
@@ -150,23 +151,29 @@ export function useChatAutomation() {
  */
 const loadCalendarEvents = useCallback(
   async (convId: string) => {
+    if (!convId) return;
+    
     try {
       const response = await fetch(`${BACKEND_URL}/api/calendar/${convId}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('Eventos cargados:', data.events);
         
-        const updatedState = {
-          ...appState,
-          calendar: data.events
-        };
-        setAppState(updatedState);
-        saveToLocalStorage(updatedState);
+        // Usar setState funcional para evitar dependencias
+        setAppState(prevState => {
+          const updatedState = {
+            ...prevState,           // Funcional: no necesita appState en dependencias
+            calendar: data.events || []
+          };
+          saveToLocalStorage(updatedState);
+          return updatedState;
+        });
       }
     } catch (err) {
       console.error('Error cargando eventos del calendario:', err);
     }
   },
-  [appState, BACKEND_URL]
+  [BACKEND_URL]    // Solo BACKEND_URL en dependencias
 );
 
 /**
@@ -315,6 +322,7 @@ const loadConversationHistory = useCallback(
         }
         
         const data = await response.json();
+        console.log("Cambios confirmados:", data);
         
         // 2. Actualizar estado local con los cambios aplicados
         const newState = data.new_state as AppState;
@@ -325,7 +333,7 @@ const loadConversationHistory = useCallback(
         setProposal(null);
         saveDraftProposal(null);
 
-        loadCalendarEvents(conversationId);
+        await loadCalendarEvents(conversationId);
         
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
