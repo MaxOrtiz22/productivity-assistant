@@ -1,10 +1,12 @@
 /**
- * ProductivityApp.tsx — Layout v2
- * Sidebar colapsable + Vista principal (chat, tareas, calendario)
+ * ProductivityApp.tsx — Layout v3
+ * Sidebar colapsable + Split view: Chat (izq) + Calendario (der)
+ * El calendario siempre está visible mostrando todos los eventos
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatAutomation } from '../hooks/useChatAutomation';
+import { Calendar } from './calendar';
 import './ProductivityApp.css';
 
 // ============================================================
@@ -57,7 +59,7 @@ function getGreeting(): string {
   return 'Buenas noches';
 }
 
-type ViewType = 'chat' | 'tasks' | 'calendar';
+type ViewType = 'chat' | 'tasks';
 type ChatState = ReturnType<typeof useChatAutomation>;
 
 // ============================================================
@@ -75,19 +77,14 @@ interface SidebarProps {
 
 function Sidebar({ collapsed, onToggle, activeView, onViewChange, taskCount, eventCount }: SidebarProps) {
   const items: { id: ViewType; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { id: 'chat',     label: 'Chat',        icon: <IconChat /> },
-    { id: 'tasks',    label: 'Tareas',      icon: <IconTasks />,    badge: taskCount || undefined },
-    { id: 'calendar', label: 'Calendario',  icon: <IconCalendar />, badge: eventCount || undefined },
+    { id: 'chat',  label: 'Chat',   icon: <IconChat /> },
+    { id: 'tasks', label: 'Tareas', icon: <IconTasks />, badge: taskCount || undefined },
   ];
 
   return (
     <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}>
       <div className="sidebar__top">
-        <button
-          className="sidebar__toggle"
-          onClick={onToggle}
-          title="Alternar barra lateral"
-        >
+        <button className="sidebar__toggle" onClick={onToggle} title="Alternar barra lateral">
           <IconPanel />
         </button>
         {!collapsed && <span className="sidebar__brand">PA</span>}
@@ -102,15 +99,21 @@ function Sidebar({ collapsed, onToggle, activeView, onViewChange, taskCount, eve
             title={collapsed ? item.label : undefined}
           >
             <span className="sidebar__item-icon">{item.icon}</span>
-            {!collapsed && (
-              <span className="sidebar__item-label">{item.label}</span>
-            )}
+            {!collapsed && <span className="sidebar__item-label">{item.label}</span>}
             {!collapsed && item.badge !== undefined && item.badge > 0 && (
               <span className="sidebar__item-badge">{item.badge}</span>
             )}
           </button>
         ))}
       </nav>
+
+      {/* Badge de eventos en calendario (siempre visible) */}
+      <div className="sidebar__calendar-info">
+        <div className="sidebar__calendar-badge">
+          <IconCalendar />
+          <span className="sidebar__calendar-count">{eventCount}</span>
+        </div>
+      </div>
     </aside>
   );
 }
@@ -233,8 +236,8 @@ function ChatView({ state }: { state: ChatState }) {
   } = state;
 
   const [input, setInput] = useState('');
-  const endRef   = useRef<HTMLDivElement>(null);
-  const taRef    = useRef<HTMLTextAreaElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const hasMessages = messages.length > 0;
 
   useEffect(() => {
@@ -264,7 +267,6 @@ function ChatView({ state }: { state: ChatState }) {
 
   return (
     <div className="chat-view">
-      {/* Scrollable body */}
       <div className="chat-body">
         <div className="chat-body__inner">
           {!hasMessages ? (
@@ -296,7 +298,6 @@ function ChatView({ state }: { state: ChatState }) {
         </div>
       </div>
 
-      {/* Fixed input at bottom */}
       <div className="chat-footer">
         <div className="chat-footer__inner">
           {error && (
@@ -357,48 +358,9 @@ function TasksView({ tasks }: { tasks: any[] }) {
           <div key={i} className={`task-item task-item--${task.priority || 'medium'}`}>
             <div className="task-item__name">{task.name}</div>
             <div className="task-item__meta">
-              {task.deadline        && <span>{task.deadline}</span>}
+              {task.deadline && <span>{task.deadline}</span>}
               {task.estimated_hours && <span>{task.estimated_hours}h</span>}
-              {task.difficulty      && <span>Dif {task.difficulty}/5</span>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// CALENDAR VIEW
-// ============================================================
-
-function CalendarView({ events }: { events: any[] }) {
-  if (events.length === 0) {
-    return (
-      <div className="empty-view">
-        <span className="empty-view__icon"><IconCalendar /></span>
-        <h2 className="empty-view__title">Sin eventos</h2>
-        <p className="empty-view__sub">Confirma una propuesta del chat para ver tus eventos aquí</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="module-view">
-      <div className="module-header">
-        <h2 className="module-header__title">Calendario</h2>
-        <span className="module-header__badge">{events.length}</span>
-      </div>
-      <div className="module-list">
-        {events.map((ev, i) => (
-          <div key={i} className="event-item">
-            <div className="event-item__time">
-              <span className="event-item__date">{ev.date}</span>
-              <span className="event-item__hour">{ev.time}</span>
-            </div>
-            <div className="event-item__body">
-              <span className="event-item__title">{ev.title}</span>
-              <span className="event-item__dur">{ev.hours}h</span>
+              {task.difficulty && <span>Dif {task.difficulty}/5</span>}
             </div>
           </div>
         ))}
@@ -413,8 +375,12 @@ function CalendarView({ events }: { events: any[] }) {
 
 export function ProductivityApp() {
   const [collapsed, setCollapsed] = useState(false);
-  const [view, setView]           = useState<ViewType>('chat');
-  const chatState                 = useChatAutomation();
+  const [view, setView] = useState<ViewType>('chat');
+  const chatState = useChatAutomation();
+
+  // Split-view: si es "chat", mostrar chat + calendario
+  // Si es "tasks", mostrar tareas en full-width
+  const showCalendar = view === 'chat';
 
   return (
     <div className="app">
@@ -427,9 +393,17 @@ export function ProductivityApp() {
         eventCount={chatState.appState.calendar.length}
       />
       <main className="app-main">
-        {view === 'chat'     && <ChatView     state={chatState} />}
-        {view === 'tasks'    && <TasksView    tasks={chatState.appState.tasks} />}
-        {view === 'calendar' && <CalendarView events={chatState.appState.calendar} />}
+        {view === 'chat' && (
+          <div className="app-split">
+            <div className="app-split__left">
+              <ChatView state={chatState} />
+            </div>
+            <div className="app-split__right">
+              <Calendar events={chatState.appState.calendar} />
+            </div>
+          </div>
+        )}
+        {view === 'tasks' && <TasksView tasks={chatState.appState.tasks} />}
       </main>
     </div>
   );
