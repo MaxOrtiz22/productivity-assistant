@@ -656,33 +656,67 @@ async def confirm_calendar_proposal(conversation_id: str):
         print(f"[ERROR] {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
 
-@app.get("/api/conversation/{conversation_id}")
-async def get_conversation(conversation_id: str):
+@app.get("/api/calendar/{conversation_id}")
+async def get_calendar_events(conversation_id: str):
     """
-    Obtener estado actual de una conversación (para debugging/testing)
+    Obtiene eventos del calendario de ambas fuentes:
+    1. app_state.calendar - propuestas regulares confirmadas
+    2. calendar_state.entries - propuestas jerárquicas (Event → SubTask → TimeSlot)
+    
+    Retorna lista plana de eventos que el frontend puede consumir.
     """
     try:
         conversation = load_conversation(conversation_id)
-        
+        events = []
+
+        # Fuente 1: app_state.calendar (propuestas de chat regular)
+        for ev in conversation.app_state.get("calendar", []):
+            events.append({
+                "id":    ev.get("id", str(uuid.uuid4())),
+                "date":  ev.get("date", ""),
+                "time":  ev.get("time", ""),
+                "title": ev.get("title", "Evento"),
+                "hours": ev.get("hours", 0),
+                "type":  "task_event"
+            })
+
+        # Fuente 2: calendar_state.entries (propuestas jerárquicas)
+        for entry in conversation.calendar_state.entries:
+            for ts in entry.timeslots:
+                start_min = ts.start_time.hour * 60 + ts.start_time.minute
+                end_min   = ts.end_time.hour   * 60 + ts.end_time.minute
+                duration_h = round(max(0, end_min - start_min) / 60, 1)
+
+                subtask_label = next(
+                    (st.name for st in entry.subtasks if st.id == ts.subtask_id),
+                    entry.event.name
+                )
+
+                events.append({
+                    "id":           ts.id,
+                    "date":         ts.date.isoformat(),
+                    "time":         ts.start_time.strftime("%H:%M"),
+                    "title":        subtask_label,
+                    "parent_event": entry.event.name,
+                    "hours":        duration_h,
+                    "type":         "calendar_event"
+                })
+
+        # Ordenar cronológicamente
+        events.sort(key=lambda e: (e.get("date", ""), e.get("time", "")))
+
         return {
-            "id": conversation.id,
-            "messages": [
-                {
-                    "role": msg.role,
-                    "content": msg.content,
-                    "timestamp": msg.timestamp
-                }
-                for msg in conversation.messages
-            ],
-            "app_state": conversation.app_state,
-            "has_proposed_changes": conversation.proposed_changes is not None,
-            "created_at": conversation.created_at,
-            "last_updated": conversation.last_updated
+            "success":         True,
+            "conversation_id": conversation_id,
+            "count":           len(events),
+            "events":          events
         }
+
     except Exception as e:
-        error_msg = f"Error obteniendo conversación: {str(e)}"
-        print(f"[ERROR] {error_msg}")
-        raise HTTPException(status_code=500, detail=error_msg)
+        print(f"[ERROR] get_calendar_events: {e}")
+        raise HTTPException(status_code=500, detail=f"Error obteniendo eventos: {str(e)}")
+
+
 
 # ============================================================================
 # EJECUCIÓN
