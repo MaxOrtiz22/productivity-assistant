@@ -1,6 +1,6 @@
 /**
  * useChatAutomation.ts
- * 
+ *
  * Hook principal para manejar:
  * - Conversación con el chat
  * - Propuestas de cambios
@@ -10,7 +10,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
 
-// Tipos
+// ── Tipos ─────────────────────────────────────────────────────────────────────
+
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -50,64 +51,64 @@ export interface AppState {
   notes: any[];
 }
 
-// Hook principal
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Resuelve la URL del backend para Vite (VITE_BACKEND_URL)
+ * y como fallback CRA (REACT_APP_BACKEND_URL).
+ * Si ninguna está definida, cae a localhost para desarrollo local.
+ */
+function resolveBackendUrl(): string {
+  // Vite expone variables de entorno en import.meta.env
+  try {
+    const viteUrl = (import.meta as any).env?.VITE_BACKEND_URL;
+    if (viteUrl) return viteUrl;
+  } catch { /* CRA no soporta import.meta */ }
+
+  // Fallback CRA
+  const craUrl = (typeof process !== 'undefined')
+    ? (process.env as any).REACT_APP_BACKEND_URL
+    : undefined;
+  if (craUrl) return craUrl;
+
+  return 'http://localhost:8000';
+}
+
+// ── Hook principal ─────────────────────────────────────────────────────────────
+
 export function useChatAutomation() {
-  // URL del backend
-  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
-  
-  // Estado de la conversación
+  const BACKEND_URL = resolveBackendUrl();
+
   const [conversationId, setConversationId] = useState<string>('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  
-  // Estado de la propuesta (lo que la IA sugiere, aún no aplicado)
-  const [proposal, setProposal] = useState<Proposal | null>(null);
-  const [proposalLoading, setProposalLoading] = useState(false);
-  
-  // Estado de la aplicación (tareas, calendario, notas)
-  const [appState, setAppState] = useState<AppState>(loadFromLocalStorage());
-  
-  // Estados de UI
-  const [error, setError] = useState<string | null>(null);
-  
-  // Cargar conversación guardada si existe
+  const [messages,       setMessages]       = useState<Message[]>([]);
+  const [proposal,       setProposal]       = useState<Proposal | null>(null);
+  const [proposalLoading,setProposalLoading]= useState(false);
+  const [appState,       setAppState]       = useState<AppState>(loadFromLocalStorage());
+  const [error,          setError]          = useState<string | null>(null);
+
+  // Cargar conversación guardada al montar
   useEffect(() => {
     const savedConvId = localStorage.getItem('activeConversationId');
     if (savedConvId) {
-      console.log('Cargando conversación:', savedConvId);
       setConversationId(savedConvId);
-      // Opcionalmente: cargar el historial de mensajes desde el backend
       loadConversationHistory(savedConvId);
       loadCalendarEvents(savedConvId);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
-  // ========================================================================
-  // FUNCIONES DE LOCAL STORAGE
-  // ========================================================================
-  
-  /**
-   * Carga el estado de la aplicación desde Local Storage
-   */
+
+  // ── Local Storage ─────────────────────────────────────────────────────────
+
   function loadFromLocalStorage(): AppState {
     try {
       const saved = localStorage.getItem('appState');
-      if (saved) {
-        return JSON.parse(saved);
-      }
+      if (saved) return JSON.parse(saved);
     } catch (err) {
       console.error('Error cargando del localStorage:', err);
     }
-    
-    return {
-      tasks: [],
-      calendar: [],
-      notes: []
-    };
+    return { tasks: [], calendar: [], notes: [] };
   }
-  
-  /**
-   * Guarda el estado en Local Storage
-   */
+
   function saveToLocalStorage(state: AppState) {
     try {
       localStorage.setItem('appState', JSON.stringify(state));
@@ -115,10 +116,7 @@ export function useChatAutomation() {
       console.error('Error guardando a localStorage:', err);
     }
   }
-  
-  /**
-   * Guarda el historial de mensajes en Local Storage
-   */
+
   function saveMessagesToLocalStorage(msgs: Message[]) {
     try {
       localStorage.setItem('chatMessages', JSON.stringify(msgs));
@@ -126,157 +124,152 @@ export function useChatAutomation() {
       console.error('Error guardando mensajes:', err);
     }
   }
-  
-  /**
-   * Guarda la propuesta en borrador
-   */
+
   function saveDraftProposal(prop: Proposal | null) {
     try {
-      if (prop) {
-        localStorage.setItem('draftProposal', JSON.stringify(prop));
-      } else {
-        localStorage.removeItem('draftProposal');
-      }
+      if (prop) localStorage.setItem('draftProposal', JSON.stringify(prop));
+      else      localStorage.removeItem('draftProposal');
     } catch (err) {
       console.error('Error guardando borrador:', err);
     }
   }
-  
-// ========================================================================
-// FUNCIONES DE CARGA (primero)
-// ========================================================================
 
-/**
- * Carga eventos del calendario desde el backend
- */
-const loadCalendarEvents = useCallback(
-  async (convId: string) => {
-    if (!convId) return;
-    
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/calendar/${convId}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Eventos cargados:', data.events);
-        
-        // Usar setState funcional para evitar dependencias
-        setAppState(prevState => {
-          const updatedState = {
-            ...prevState,           // Funcional: no necesita appState en dependencias
-            calendar: data.events || []
-          };
-          saveToLocalStorage(updatedState);
-          return updatedState;
-        });
+  // ── Carga de eventos del calendario ───────────────────────────────────────
+
+  /**
+   * Obtiene los eventos del backend (ambas fuentes: app_state + calendar_state)
+   * y actualiza appState.calendar.
+   */
+  const loadCalendarEvents = useCallback(
+    async (convId: string) => {
+      if (!convId) return;
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/calendar/${convId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setAppState(prev => {
+            const updated = { ...prev, calendar: data.events || [] };
+            saveToLocalStorage(updated);
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error('Error cargando eventos del calendario:', err);
       }
-    } catch (err) {
-      console.error('Error cargando eventos del calendario:', err);
-    }
-  },
-  [BACKEND_URL]    // Solo BACKEND_URL en dependencias
-);
+    },
+    [BACKEND_URL]
+  );
 
-/**
- * Carga el historial de una conversación (opcional, para debugging)
- */
-const loadConversationHistory = useCallback(
-  async (convId: string) => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/conversation/${convId}`);
-      if (response.ok) {
-        const data = await response.json();
-        const msgs: Message[] = data.messages.map((msg: any) => ({
-          role: msg.role,
-          content: msg.content,
-          timestamp: msg.timestamp
-        }));
-        setMessages(msgs);
-        saveMessagesToLocalStorage(msgs);
-        
-        if (data.has_proposed_changes) {
-          const drafted = localStorage.getItem('draftProposal');
-          if (drafted) {
-            setProposal(JSON.parse(drafted));
+  // ── Historial de conversación ─────────────────────────────────────────────
+
+  const loadConversationHistory = useCallback(
+    async (convId: string) => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/conversation/${convId}`);
+        if (response.ok) {
+          const data = await response.json();
+          const msgs: Message[] = data.messages.map((msg: any) => ({
+            role:      msg.role,
+            content:   msg.content,
+            timestamp: msg.timestamp,
+          }));
+          setMessages(msgs);
+          saveMessagesToLocalStorage(msgs);
+
+          if (data.has_proposed_changes) {
+            const drafted = localStorage.getItem('draftProposal');
+            if (drafted) setProposal(JSON.parse(drafted));
           }
         }
+      } catch (err) {
+        console.error('Error cargando historial:', err);
       }
-    } catch (err) {
-      console.error('Error cargando historial:', err);
-    }
-  },
-  [BACKEND_URL]
-);
+    },
+    [BACKEND_URL]
+  );
 
-  // ========================================================================
-  // FUNCIONES DEL CHAT
-  // ========================================================================
-  
-  /**
-   * Envía un mensaje al backend
-   */
+  // ── Chat ──────────────────────────────────────────────────────────────────
+
   const sendMessage = useCallback(
     async (userMessage: string) => {
       if (!userMessage.trim()) return;
-      
+
       setError(null);
       setProposalLoading(true);
-      
+
       try {
-        // 1. Agregar mensaje del usuario al historial local
+        // 1. Agregar mensaje del usuario
         const newMessage: Message = {
-          role: 'user',
-          content: userMessage,
-          timestamp: new Date().toISOString()
+          role:      'user',
+          content:   userMessage,
+          timestamp: new Date().toISOString(),
         };
         const updatedMessages = [...messages, newMessage];
         setMessages(updatedMessages);
         saveMessagesToLocalStorage(updatedMessages);
-        
+
         // 2. Enviar al backend
         const response = await fetch(`${BACKEND_URL}/api/chat`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: userMessage,
-            conversation_id: conversationId || undefined
-          })
+            message:         userMessage,
+            conversation_id: conversationId || undefined,
+          }),
         });
-        
+
         if (!response.ok) {
-          throw new Error(`Error del backend: ${response.statusText}`);
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || `Error ${response.status}: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
-        
-        // 3. Si es la primera vez, guardar conversation_id
-        if (!conversationId) {
+
+        // 3. Guardar conversation_id si es la primera vez
+        const activeConvId = conversationId || data.conversation_id;
+        if (!conversationId && data.conversation_id) {
           setConversationId(data.conversation_id);
           localStorage.setItem('activeConversationId', data.conversation_id);
         }
-        
-        // 4. Agregar respuesta de la IA al historial
-        const aiMessage: Message = {
-          role: 'assistant',
-          content: data.explanation,
-          timestamp: new Date().toISOString()
-        };
-        const finalMessages = [...updatedMessages, aiMessage];
-        setMessages(finalMessages);
-        saveMessagesToLocalStorage(finalMessages);
-        
-        // 5. Mostrar propuesta (sin aplicarla)
-        const newProposal: Proposal = {
-          understanding: data.understanding,
-          tasks: data.proposed_changes.tasks,
-          calendar: data.proposed_changes.calendar,
-          conflicts: data.proposed_changes.conflicts,
-          explanation: data.proposed_changes.explanation
-        };
-        setProposal(newProposal);
-        saveDraftProposal(newProposal);
-        
+
+        // 4. Manejar tipos de respuesta
+        if (data.type === 'calendar_proposal') {
+          // Propuesta de evento jerárquico (create_calendar_event=true)
+          const aiMessage: Message = {
+            role:      'assistant',
+            content:   data.reasoning || 'Propuesta de calendario generada.',
+            timestamp: new Date().toISOString(),
+          };
+          const finalMessages = [...updatedMessages, aiMessage];
+          setMessages(finalMessages);
+          saveMessagesToLocalStorage(finalMessages);
+          // No mostramos ProposalCard para este tipo aún
+          // TODO: implementar tarjeta específica para calendar_proposal
+
+        } else {
+          // Propuesta regular de tareas/calendario
+          const aiMessage: Message = {
+            role:      'assistant',
+            content:   data.explanation || 'Propuesta generada.',
+            timestamp: new Date().toISOString(),
+          };
+          const finalMessages = [...updatedMessages, aiMessage];
+          setMessages(finalMessages);
+          saveMessagesToLocalStorage(finalMessages);
+
+          if (data.proposed_changes) {
+            const newProposal: Proposal = {
+              understanding: data.understanding || '',
+              tasks:         data.proposed_changes.tasks     || [],
+              calendar:      data.proposed_changes.calendar  || [],
+              conflicts:     data.proposed_changes.conflicts || [],
+              explanation:   data.proposed_changes.explanation || '',
+            };
+            setProposal(newProposal);
+            saveDraftProposal(newProposal);
+          }
+        }
+
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
         setError(errorMsg);
@@ -287,54 +280,45 @@ const loadConversationHistory = useCallback(
     },
     [conversationId, messages, BACKEND_URL]
   );
-  
-  // ========================================================================
-  // FUNCIONES DE PROPUESTA
-  // ========================================================================
-  
-  /**
-   * Confirma los cambios propuestos y los aplica
-   */
+
+  // ── Confirmación / rechazo / ajuste ───────────────────────────────────────
+
   const confirmChanges = useCallback(
     async () => {
       if (!conversationId || !proposal) {
         setError('No hay propuesta para confirmar');
         return;
       }
-      
+
       setProposalLoading(true);
       setError(null);
-      
+
       try {
-        // 1. Enviar confirmación al backend
         const response = await fetch(`${BACKEND_URL}/api/confirm-changes`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            conversation_id: conversationId
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: conversationId }),
         });
-        
+
         if (!response.ok) {
-          throw new Error(`Error al confirmar: ${response.statusText}`);
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || `Error ${response.status}`);
         }
-        
+
         const data = await response.json();
-        console.log("Cambios confirmados:", data);
-        
-        // 2. Actualizar estado local con los cambios aplicados
+
+        // Actualizar estado local con el nuevo estado del backend
         const newState = data.new_state as AppState;
         setAppState(newState);
         saveToLocalStorage(newState);
-        
-        // 3. Limpiar propuesta temporal
+
+        // Limpiar propuesta
         setProposal(null);
         saveDraftProposal(null);
 
+        // Sincronizar calendario (incluye calendar_state jerárquico)
         await loadCalendarEvents(conversationId);
-        
+
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
         setError(errorMsg);
@@ -345,77 +329,58 @@ const loadConversationHistory = useCallback(
     },
     [conversationId, proposal, BACKEND_URL, loadCalendarEvents]
   );
-  
-  /**
-   * Rechaza la propuesta actual
-   */
-  const rejectProposal = useCallback(
-    () => {
-      setProposal(null);
-      saveDraftProposal(null);
-      // El usuario puede escribir de nuevo
-    },
-    []
-  );
-  
-  /**
-   * Ajusta la propuesta (usuario quiere cambios)
-   */
+
+  const rejectProposal = useCallback(() => {
+    setProposal(null);
+    saveDraftProposal(null);
+  }, []);
+
   const adjustProposal = useCallback(
     async (adjustment: string) => {
       if (!conversationId || !adjustment.trim()) {
         setError('Mensaje de ajuste vacío');
         return;
       }
-      
+
       setProposalLoading(true);
       setError(null);
-      
+
       try {
-        // 1. Enviar ajuste al backend
         const response = await fetch(`${BACKEND_URL}/api/adjust-proposal`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            conversation_id: conversationId,
-            adjustment
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: conversationId, adjustment }),
         });
-        
+
         if (!response.ok) {
-          throw new Error(`Error al ajustar: ${response.statusText}`);
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || `Error ${response.status}`);
         }
-        
+
         const data = await response.json();
-        
-        // 2. Actualizar historial de mensajes
+
         const adjustmentMessage: Message = {
-          role: 'user',
-          content: adjustment,
-          timestamp: new Date().toISOString()
+          role: 'user', content: adjustment, timestamp: new Date().toISOString(),
         };
         const aiMessage: Message = {
-          role: 'assistant',
-          content: data.explanation,
-          timestamp: new Date().toISOString()
+          role: 'assistant', content: data.explanation || '', timestamp: new Date().toISOString(),
         };
         const updatedMessages = [...messages, adjustmentMessage, aiMessage];
         setMessages(updatedMessages);
         saveMessagesToLocalStorage(updatedMessages);
-        
-        // 3. Mostrar nueva propuesta
-        const newProposal: Proposal = {
-          understanding: data.understanding,
-          tasks: data.proposed_changes.tasks,
-          calendar: data.proposed_changes.calendar,
-          conflicts: data.proposed_changes.conflicts,
-          explanation: data.proposed_changes.explanation
-        };
-        setProposal(newProposal);
-        saveDraftProposal(newProposal);
-        
+
+        if (data.proposed_changes) {
+          const newProposal: Proposal = {
+            understanding: data.understanding || '',
+            tasks:         data.proposed_changes.tasks     || [],
+            calendar:      data.proposed_changes.calendar  || [],
+            conflicts:     data.proposed_changes.conflicts || [],
+            explanation:   data.proposed_changes.explanation || '',
+          };
+          setProposal(newProposal);
+          saveDraftProposal(newProposal);
+        }
+
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
         setError(errorMsg);
@@ -426,29 +391,20 @@ const loadConversationHistory = useCallback(
     },
     [conversationId, messages, BACKEND_URL]
   );
-  
-  // ========================================================================
-  // RETORNO
-  // ========================================================================
-  
+
+  // ── Retorno ───────────────────────────────────────────────────────────────
+
   return {
-    // Chat
     messages,
     conversationId,
     sendMessage,
-    
-    // Propuesta
     proposal,
     proposalLoading,
     confirmChanges,
     rejectProposal,
     adjustProposal,
-    
-    // App State
     appState,
-    
-    // UI
     error,
-    setError
+    setError,
   };
 }
