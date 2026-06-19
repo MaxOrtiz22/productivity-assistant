@@ -1,7 +1,6 @@
 /**
- * ProductivityApp.tsx — Layout v3
- * Sidebar colapsable + Split view: Chat (izq) + Calendario (der)
- * El calendario siempre está visible mostrando todos los eventos
+ * ProductivityApp.tsx — Layout v4
+ * Sidebar colapsable + 3 vistas: Chat (split), Tareas (full), Calendario (full)
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -59,7 +58,7 @@ function getGreeting(): string {
   return 'Buenas noches';
 }
 
-type ViewType = 'chat' | 'tasks';
+type ViewType = 'chat' | 'tasks' | 'calendar';
 type ChatState = ReturnType<typeof useChatAutomation>;
 
 // ============================================================
@@ -77,8 +76,9 @@ interface SidebarProps {
 
 function Sidebar({ collapsed, onToggle, activeView, onViewChange, taskCount, eventCount }: SidebarProps) {
   const items: { id: ViewType; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { id: 'chat',  label: 'Chat',   icon: <IconChat /> },
-    { id: 'tasks', label: 'Tareas', icon: <IconTasks />, badge: taskCount || undefined },
+    { id: 'chat',       label: 'Chat',       icon: <IconChat /> },
+    { id: 'tasks',      label: 'Tareas',     icon: <IconTasks />, badge: taskCount || undefined },
+    { id: 'calendar',   label: 'Calendario', icon: <IconCalendar />, badge: eventCount || undefined },
   ];
 
   return (
@@ -333,7 +333,7 @@ function ChatView({ state }: { state: ChatState }) {
 }
 
 // ============================================================
-// TASKS VIEW
+// TASKS VIEW (Full-width)
 // ============================================================
 
 function TasksView({ tasks }: { tasks: any[] }) {
@@ -370,6 +370,24 @@ function TasksView({ tasks }: { tasks: any[] }) {
 }
 
 // ============================================================
+// CALENDAR VIEW (Full-width)
+// ============================================================
+
+function CalendarView({ events }: { events: any[] }) {
+  return (
+    <div className="module-view">
+      <div className="module-header">
+        <h2 className="module-header__title">Calendario</h2>
+        <span className="module-header__badge">{events.length}</span>
+      </div>
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <Calendar events={events} />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // ROOT
 // ============================================================
 
@@ -377,10 +395,6 @@ export function ProductivityApp() {
   const [collapsed, setCollapsed] = useState(false);
   const [view, setView] = useState<ViewType>('chat');
   const chatState = useChatAutomation();
-
-  // Split-view: si es "chat", mostrar chat + calendario
-  // Si es "tasks", mostrar tareas en full-width
-  const showCalendar = view === 'chat';
 
   return (
     <div className="app">
@@ -404,6 +418,7 @@ export function ProductivityApp() {
           </div>
         )}
         {view === 'tasks' && <TasksView tasks={chatState.appState.tasks} />}
+        {view === 'calendar' && <CalendarView events={chatState.appState.calendar} />}
       </main>
     </div>
   );
