@@ -991,3 +991,494 @@ textarea, input { font-family: inherit; }
   margin: 0;
   font-family: var(--font-mono);
 }
+
+/* ============================================================
+   CALENDAR COMPONENT - 3 VISTAS (MENSUAL, SEMANAL, DIARIA)
+   ============================================================ */
+
+.calendar-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1.5rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  overflow: hidden;
+}
+
+/* ── Toggle Buttons ─────────────────────────────────────── */
+
+.calendar-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  flex-shrink: 0;
+}
+
+.toggle-btn {
+  padding: 0.5rem 1rem;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+  color: var(--text);
+  border-color: var(--secondary);
+  background: rgba(168, 196, 224, 0.05);
+}
+
+.toggle-btn--active {
+  background: var(--accent);
+  color: var(--base);
+  border-color: var(--accent);
+}
+
+/* ── Header común ──────────────────────────────────────── */
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 0.5px solid var(--border);
+  flex-shrink: 0;
+}
+
+.calendar-title {
+  font-size: 18px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.calendar-nav-btn {
+  background: transparent;
+  border: 0.5px solid var(--border);
+  color: var(--secondary);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calendar-nav-btn:hover {
+  background: rgba(168, 196, 224, 0.1);
+  border-color: var(--secondary);
+}
+
+/* ============================================================
+   VISTA MENSUAL
+   ============================================================ */
+
+.calendar-view__monthly {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 0.75rem;
+  flex-shrink: 0;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 0.5rem 0;
+  font-family: var(--font-mono);
+}
+
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+
+.calendar-days::-webkit-scrollbar { width: 3px; }
+.calendar-days::-webkit-scrollbar-track { background: transparent; }
+.calendar-days::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.calendar-day {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.calendar-day:hover {
+  border-color: var(--accent);
+  background: rgba(232, 157, 184, 0.04);
+}
+
+.calendar-day--empty {
+  background: transparent;
+  border: none;
+  cursor: default;
+}
+
+.calendar-day--empty:hover {
+  border: none;
+  background: transparent;
+}
+
+.calendar-day--today {
+  border-color: var(--accent);
+  background: rgba(232, 157, 184, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(232, 157, 184, 0.15);
+}
+
+.calendar-day-number {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+  font-family: var(--font-mono);
+}
+
+.calendar-day-main-event {
+  font-size: 10px;
+  color: var(--secondary);
+  background: rgba(168, 196, 224, 0.15);
+  padding: 2px 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.calendar-footer {
+  text-align: center;
+  padding-top: 0.75rem;
+  border-top: 0.5px solid var(--border);
+  flex-shrink: 0;
+}
+
+.calendar-footer-text {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+/* ============================================================
+   VISTA SEMANAL
+   ============================================================ */
+
+.calendar-view__weekly {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.weekly-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+
+.weekly-days::-webkit-scrollbar { width: 3px; }
+.weekly-days::-webkit-scrollbar-track { background: transparent; }
+.weekly-days::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.weekly-day {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.weekly-day:hover {
+  border-color: var(--accent);
+  background: rgba(232, 157, 184, 0.04);
+}
+
+.weekly-day--today {
+  border-color: var(--accent);
+  background: rgba(232, 157, 184, 0.08);
+}
+
+.weekly-day-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+  font-family: var(--font-mono);
+  text-transform: capitalize;
+}
+
+.weekly-day-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.weekly-day-tasks::-webkit-scrollbar { width: 2px; }
+.weekly-day-tasks::-webkit-scrollbar-track { background: transparent; }
+.weekly-day-tasks::-webkit-scrollbar-thumb { background: var(--border); }
+
+.weekly-task-item {
+  background: rgba(168, 196, 224, 0.15);
+  border-left: 2px solid var(--secondary);
+  border-radius: 2px;
+  padding: 0.3rem 0.4rem;
+  font-size: 9px;
+  line-height: 1.2;
+  overflow: hidden;
+}
+
+.weekly-task-time {
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.weekly-task-title {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekly-task-parent {
+  font-size: 8px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+.weekly-day-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+  padding: 1rem 0.25rem;
+  min-height: 60px;
+}
+
+/* ============================================================
+   VISTA DIARIA
+   ============================================================ */
+
+.calendar-view__daily {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.daily-container {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  gap: 1rem;
+  flex: 1;
+  overflow: hidden;
+}
+
+.daily-grid {
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.daily-grid::-webkit-scrollbar { width: 3px; }
+.daily-grid::-webkit-scrollbar-track { background: transparent; }
+.daily-grid::-webkit-scrollbar-thumb { background: var(--border); }
+
+.daily-timeslots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.daily-timeslot {
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.daily-timeslot:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.timeslot-time {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.timeslot-block {
+  background: rgba(168, 196, 224, 0.15);
+  border-left: 3px solid var(--secondary);
+  border-radius: 3px;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.timeslot-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.timeslot-duration {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.timeslot-parent {
+  font-size: 9px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.daily-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.daily-summary {
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.daily-summary::-webkit-scrollbar { width: 3px; }
+.daily-summary::-webkit-scrollbar-track { background: transparent; }
+.daily-summary::-webkit-scrollbar-thumb { background: var(--border); }
+
+.summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.summary-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+.summary-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.summary-item {
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 0.5rem;
+  font-size: 10px;
+  padding: 0.4rem;
+  background: rgba(168, 196, 224, 0.1);
+  border-radius: 3px;
+}
+
+.summary-item-time {
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.summary-item-title {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-total {
+  font-size: 10px;
+  color: var(--secondary);
+  font-weight: 700;
+  text-align: right;
+  margin-top: 0.3rem;
+  padding-top: 0.3rem;
+  border-top: 0.5px solid var(--border);
+}
+
+.summary-more {
+  font-size: 9px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.summary-empty {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  padding: 0.5rem 0;
+}

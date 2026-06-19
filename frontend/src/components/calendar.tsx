@@ -1,11 +1,15 @@
 /**
- * Calendar.tsx
+ * calendar.tsx - Versión 3 niveles
  * 
- * Calendario visual con vista semanal/mensual y eventos distribuidos.
- * Muestra eventos de ambas fuentes: app_state.calendar y calendar_state.entries
+ * Toggle entre:
+ * - Vista Mensual (Macro): Solo eventos principales
+ * - Vista Semanal (Meso): SubTasks distribuidas por día
+ * - Vista Diaria (Micro): TimeSlots con horarios exactos + resumen
+ * 
+ * Reemplaza frontend/src/components/calendar.tsx
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
 interface CalendarEvent {
   id: string;
@@ -14,186 +18,22 @@ interface CalendarEvent {
   title: string;
   hours: number;
   type?: string;
+  parent_event?: string;
 }
 
 interface CalendarProps {
   events: CalendarEvent[];
-  onSelectDate?: (date: string) => void;
 }
 
-const calendarStyles = `
-  .calendar {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    padding: 1.5rem;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-body);
-  }
+// ============================================================
+// VIEW: MENSUAL (Macro)
+// ============================================================
 
-  .calendar__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .calendar__month-title {
-    font-size: 20px;
-    font-family: var(--font-mono);
-    font-weight: 700;
-    color: var(--text);
-    margin: 0;
-  }
-
-  .calendar__nav-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--secondary);
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius);
-    font-size: 13px;
-    font-family: var(--font-mono);
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .calendar__nav-btn:hover {
-    background: rgba(168, 196, 224, 0.1);
-    border-color: var(--secondary);
-  }
-
-  .calendar__weekdays {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
-    margin-bottom: 0.75rem;
-  }
-
-  .calendar__weekday {
-    text-align: center;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--muted);
-    padding: 0.5rem 0;
-    font-family: var(--font-mono);
-  }
-
-  .calendar__days {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
-    flex: 1;
-    overflow-y: auto;
-    margin-bottom: 1rem;
-  }
-
-  .calendar__day {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.5rem;
-    min-height: 100px;
-    display: flex;
-    flex-direction: column;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .calendar__day:hover {
-    border-color: var(--accent);
-    background: rgba(232, 157, 184, 0.04);
-  }
-
-  .calendar__day--empty {
-    background: transparent;
-    border: none;
-    cursor: default;
-  }
-
-  .calendar__day--empty:hover {
-    border: none;
-    background: transparent;
-  }
-
-  .calendar__day--today {
-    border-color: var(--accent);
-    background: rgba(232, 157, 184, 0.08);
-  }
-
-  .calendar__day-number {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 0.4rem;
-    font-family: var(--font-mono);
-  }
-
-  .calendar__day-events {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex: 1;
-    overflow: hidden;
-  }
-
-  .calendar__event-chip {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(168, 196, 224, 0.15);
-    border-left: 2px solid var(--secondary);
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-size: 10px;
-    color: var(--text);
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .calendar__event-time {
-    font-family: var(--font-mono);
-    font-weight: 700;
-    color: var(--accent);
-    flex-shrink: 0;
-  }
-
-  .calendar__event-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .calendar__event-more {
-    font-size: 9px;
-    color: var(--muted);
-    padding: 1px 3px;
-    font-family: var(--font-mono);
-  }
-
-  .calendar__footer {
-    text-align: center;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .calendar__footer-text {
-    font-size: 13px;
-    color: var(--muted);
-    margin: 0;
-  }
-`;
-
-export function Calendar({ events, onSelectDate }: CalendarProps) {
-  // Obtener mes/año actual
+function MonthlyView({ events }: { events: CalendarEvent[] }) {
   const today = new Date();
-  const [currentMonth, setCurrentMonth] = React.useState(today.getMonth());
-  const [currentYear, setCurrentYear] = React.useState(today.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
 
-  // Agrupar eventos por fecha
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
     events.forEach(event => {
@@ -204,17 +44,16 @@ export function Calendar({ events, onSelectDate }: CalendarProps) {
     return map;
   }, [events]);
 
-  // Días del mes actual
-  const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
-  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
-  const daysInMonth = lastDayOfMonth.getDate();
-  const startingDayOfWeek = firstDayOfMonth.getDay();
+  const firstDay = new Date(currentYear, currentMonth, 1);
+  const lastDay = new Date(currentYear, currentMonth + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay();
 
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const emptyDays = Array.from({ length: startingDayOfWeek }, () => null);
   const calendarDays = [...emptyDays, ...daysArray];
 
-  const monthName = firstDayOfMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  const monthName = firstDay.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
 
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
@@ -235,69 +74,55 @@ export function Calendar({ events, onSelectDate }: CalendarProps) {
   };
 
   return (
-    <div className="calendar">
-      {/* Header con navegación */}
-      <div className="calendar__header">
-        <button className="calendar__nav-btn" onClick={handlePrevMonth}>
-          ← Anterior
+    <div className="calendar-view__monthly">
+      {/* Header */}
+      <div className="calendar-header">
+        <button className="calendar-nav-btn" onClick={handlePrevMonth}>
+          ‹ Anterior
         </button>
-        <h2 className="calendar__month-title">
+        <h2 className="calendar-title">
           {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
         </h2>
-        <button className="calendar__nav-btn" onClick={handleNextMonth}>
-          Siguiente →
+        <button className="calendar-nav-btn" onClick={handleNextMonth}>
+          Siguiente ›
         </button>
       </div>
 
-      {/* Grid de días de semana */}
-      <div className="calendar__weekdays">
+      {/* Weekday headers */}
+      <div className="calendar-weekdays">
         {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(day => (
-          <div key={day} className="calendar__weekday">
+          <div key={day} className="calendar-weekday">
             {day}
           </div>
         ))}
       </div>
 
-      {/* Grid de días */}
-      <div className="calendar__days">
+      {/* Days grid */}
+      <div className="calendar-days">
         {calendarDays.map((day, idx) => {
           if (day === null) {
-            return <div key={`empty-${idx}`} className="calendar__day calendar__day--empty" />;
+            return <div key={`empty-${idx}`} className="calendar-day calendar-day--empty" />;
           }
 
           const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const dayEvents = eventsByDate.get(dateStr) || [];
-          const isToday = 
+          const isToday =
             day === today.getDate() &&
             currentMonth === today.getMonth() &&
             currentYear === today.getFullYear();
 
+          // En vista mensual, solo mostrar evento principal (sin hora)
+          const mainEvent = dayEvents.length > 0 ? dayEvents[0] : null;
+
           return (
             <div
               key={day}
-              className={`calendar__day${isToday ? ' calendar__day--today' : ''}`}
-              onClick={() => onSelectDate?.(dateStr)}
+              className={`calendar-day${isToday ? ' calendar-day--today' : ''}`}
             >
-              <div className="calendar__day-number">{day}</div>
-              
-              {dayEvents.length > 0 && (
-                <div className="calendar__day-events">
-                  {dayEvents.slice(0, 2).map(ev => (
-                    <div
-                      key={ev.id}
-                      className="calendar__event-chip"
-                      title={`${ev.time} - ${ev.title} (${ev.hours}h)`}
-                    >
-                      <span className="calendar__event-time">{ev.time}</span>
-                      <span className="calendar__event-title">{ev.title}</span>
-                    </div>
-                  ))}
-                  
-                  {dayEvents.length > 2 && (
-                    <div className="calendar__event-more">
-                      +{dayEvents.length - 2} más
-                    </div>
-                  )}
+              <div className="calendar-day-number">{day}</div>
+              {mainEvent && (
+                <div className="calendar-day-main-event" title={mainEvent.title}>
+                  {mainEvent.title}
                 </div>
               )}
             </div>
@@ -305,12 +130,274 @@ export function Calendar({ events, onSelectDate }: CalendarProps) {
         })}
       </div>
 
-      {/* Info de eventos totales */}
-      <div className="calendar__footer">
-        <p className="calendar__footer-text">
+      {/* Footer */}
+      <div className="calendar-footer">
+        <p className="calendar-footer-text">
           Total: <strong>{events.length}</strong> evento{events.length !== 1 ? 's' : ''}
         </p>
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// VIEW: SEMANAL (Meso)
+// ============================================================
+
+function WeeklyView({ events }: { events: CalendarEvent[] }) {
+  const today = new Date();
+  const [weekStart, setWeekStart] = useState(getWeekStart(today));
+
+  function getWeekStart(date: Date): Date {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day;
+    return new Date(d.setDate(diff));
+  }
+
+  function getWeekEnd(start: Date): Date {
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return end;
+  }
+
+  const weekEnd = getWeekEnd(weekStart);
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    events.forEach(event => {
+      const key = event.date;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(event);
+    });
+    return map;
+  }, [events]);
+
+  const daysOfWeek = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+
+  const handlePrevWeek = () => {
+    setWeekStart(prev => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() - 7);
+      return d;
+    });
+  };
+
+  const handleNextWeek = () => {
+    setWeekStart(prev => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + 7);
+      return d;
+    });
+  };
+
+  const weekLabel = `${weekStart.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })}`;
+
+  return (
+    <div className="calendar-view__weekly">
+      {/* Header */}
+      <div className="calendar-header">
+        <button className="calendar-nav-btn" onClick={handlePrevWeek}>
+          ‹ Anterior
+        </button>
+        <h2 className="calendar-title">Semana: {weekLabel}</h2>
+        <button className="calendar-nav-btn" onClick={handleNextWeek}>
+          Siguiente ›
+        </button>
+      </div>
+
+      {/* Days with events */}
+      <div className="weekly-days">
+        {daysOfWeek.map((day, idx) => {
+          const dateStr = day.toISOString().split('T')[0];
+          const dayEvents = eventsByDate.get(dateStr) || [];
+          const isToday = day.toDateString() === today.toDateString();
+
+          const dayName = day.toLocaleDateString('es-ES', { weekday: 'long', month: 'short', day: 'numeric' });
+
+          return (
+            <div
+              key={idx}
+              className={`weekly-day${isToday ? ' weekly-day--today' : ''}`}
+            >
+              <div className="weekly-day-header">{dayName}</div>
+              
+              {dayEvents.length > 0 ? (
+                <div className="weekly-day-tasks">
+                  {dayEvents.map(event => (
+                    <div key={event.id} className="weekly-task-item">
+                      <div className="weekly-task-time">{event.time}</div>
+                      <div className="weekly-task-title">{event.title}</div>
+                      {event.parent_event && (
+                        <div className="weekly-task-parent">{event.parent_event}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="weekly-day-empty">Sin tareas</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// VIEW: DIARIA (Micro)
+// ============================================================
+
+function DailyView({ events }: { events: CalendarEvent[] }) {
+  const today = new Date();
+  const [selectedDate, setSelectedDate] = useState(today);
+
+  const dateStr = selectedDate.toISOString().split('T')[0];
+  const todayEvents = events.filter(e => e.date === dateStr).sort((a, b) => a.time.localeCompare(b.time));
+
+  const tomorrowDate = new Date(selectedDate);
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
+  const tomorrowEvents = events.filter(e => e.date === tomorrowStr);
+
+  const handlePrevDay = () => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(d);
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(d);
+  };
+
+  const dateLabel = selectedDate.toLocaleDateString('es-ES', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  return (
+    <div className="calendar-view__daily">
+      {/* Header */}
+      <div className="calendar-header">
+        <button className="calendar-nav-btn" onClick={handlePrevDay}>
+          ‹ Anterior
+        </button>
+        <h2 className="calendar-title">{dateLabel}</h2>
+        <button className="calendar-nav-btn" onClick={handleNextDay}>
+          Siguiente ›
+        </button>
+      </div>
+
+      {/* Main content */}
+      <div className="daily-container">
+        {/* Left: Hourly grid */}
+        <div className="daily-grid">
+          {todayEvents.length > 0 ? (
+            <div className="daily-timeslots">
+              {todayEvents.map(event => (
+                <div key={event.id} className="daily-timeslot">
+                  <div className="timeslot-time">{event.time}</div>
+                  <div className="timeslot-block">
+                    <div className="timeslot-title">{event.title}</div>
+                    <div className="timeslot-duration">{event.hours}h</div>
+                    {event.parent_event && (
+                      <div className="timeslot-parent">{event.parent_event}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="daily-empty">
+              <p>Sin tareas programadas para hoy</p>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Summary */}
+        <div className="daily-summary">
+          <div className="summary-section">
+            <h3 className="summary-title">Hoy ({dateLabel})</h3>
+            {todayEvents.length > 0 ? (
+              <div className="summary-items">
+                {todayEvents.map(event => (
+                  <div key={event.id} className="summary-item">
+                    <div className="summary-item-time">{event.time}</div>
+                    <div className="summary-item-title">{event.title}</div>
+                  </div>
+                ))}
+                <div className="summary-total">
+                  Total: {todayEvents.reduce((sum, e) => sum + e.hours, 0).toFixed(1)}h
+                </div>
+              </div>
+            ) : (
+              <p className="summary-empty">Sin tareas</p>
+            )}
+          </div>
+
+          <div className="summary-section">
+            <h3 className="summary-title">Mañana</h3>
+            {tomorrowEvents.length > 0 ? (
+              <div className="summary-items">
+                {tomorrowEvents.slice(0, 3).map(event => (
+                  <div key={event.id} className="summary-item">
+                    <div className="summary-item-time">{event.time}</div>
+                    <div className="summary-item-title">{event.title}</div>
+                  </div>
+                ))}
+                {tomorrowEvents.length > 3 && (
+                  <div className="summary-more">+{tomorrowEvents.length - 3} más</div>
+                )}
+              </div>
+            ) : (
+              <p className="summary-empty">Sin tareas</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
+
+export function Calendar({ events }: CalendarProps) {
+  const [view, setView] = useState<'monthly' | 'weekly' | 'daily'>('monthly');
+
+  return (
+    <div className="calendar-container">
+      {/* Toggle buttons */}
+      <div className="calendar-toggle">
+        <button
+          className={`toggle-btn${view === 'monthly' ? ' toggle-btn--active' : ''}`}
+          onClick={() => setView('monthly')}
+        >
+          Mes
+        </button>
+        <button
+          className={`toggle-btn${view === 'weekly' ? ' toggle-btn--active' : ''}`}
+          onClick={() => setView('weekly')}
+        >
+          Semana
+        </button>
+        <button
+          className={`toggle-btn${view === 'daily' ? ' toggle-btn--active' : ''}`}
+          onClick={() => setView('daily')}
+        >
+          Día
+        </button>
+      </div>
+
+      {/* Views */}
+      {view === 'monthly' && <MonthlyView events={events} />}
+      {view === 'weekly' && <WeeklyView events={events} />}
+      {view === 'daily' && <DailyView events={events} />}
     </div>
   );
 }
